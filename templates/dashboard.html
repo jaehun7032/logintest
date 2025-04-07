@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Sidebar Toggle Example</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" />
+  <style>
+    body {
+      overflow-x: hidden;
+    }
+
+    .sidebar {
+      width: 250px;
+      height: 100vh;
+      transition: transform 0.3s ease;
+      z-index: 1050;
+      position: fixed;
+      top: 0;
+      left: 0;
+    }
+    .sidebar-closed {
+      transform: translateX(-100%);
+    }
+    .sidebar-open {
+      transform: translateX(0);
+    }
+    .main-content {
+      transition: margin-left 0.3s ease;
+      margin-left: 0;
+    }
+    .sidebar-open ~ .main-content {
+      margin-left: 250px;
+    }
+
+    @media (max-width: 768px) {
+      .sidebar {
+        width: 100%;
+      }
+      .sidebar-open ~ .main-content {
+        margin-left: 0;
+        transform: translateX(100%);
+        transition: transform 0.3s ease;
+      }
+      .sidebar-closed ~ .main-content {
+        transform: translateX(0);
+      }
+      .navbar-brand {
+        margin-left: 3rem !important;
+      }
+    }
+  </style>
+</head>
+
+<body>
+<!-- Sidebar -->
+<div id="sidebarMenu" class="bg-light position-fixed p-3 shadow sidebar sidebar-closed">
+  <button class="btn btn-outline-dark position-fixed top-0 start-0 m-2" id="menuClose" style="z-index: 1100;">
+    <i class="bi bi-x-lg"></i>
+  </button>
+  <ul class="list-group mt-5">
+    <li class="list-group-item"><a href="#" class="text-decoration-none text-dark">Account Settings</a></li>
+    <li class="list-group-item">
+      <a href="#" class="text-decoration-none text-dark" id="toggleInvitations">
+        Invitations <i class="bi bi-chevron-down float-end"></i>
+      </a>
+      <ul id="invitationList" class="list-group mt-2" style="display: none;"></ul>
+    </li>
+    <li class="list-group-item"><a href="{{ url_for('logout') }}" class="text-decoration-none text-dark">Logout</a></li>
+  </ul>
+</div>
+
+<!-- Main Content -->
+<div class="main-content">
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container position-relative">
+      <button class="btn btn-outline-light position-fixed top-0 start-0 m-2" id="menuToggle" style="z-index: 1100;">
+        <i class="bi bi-list"></i>
+      </button>
+      <a class="navbar-brand ms-5" href="#">Project Manager</a>
+      <div class="navbar-nav ms-auto">
+        <span class="nav-item nav-link text-light">Welcome, {{ user.username }}</span>
+        <a class="nav-item nav-link" href="{{ url_for('logout') }}">Logout</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h2>My Projects</h2>
+      <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newProjectModal">
+        <i class="bi bi-plus-lg"></i> New Project
+      </button>
+    </div>
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+      {% for project in projects %}
+      <div class="col">
+        <div class="card project-card h-100 position-relative" data-project-id="{{ project._id }}">
+          <div class="card-body pb-5"> <!-- 버튼 높이만큼 padding-bottom 추가 -->
+            <h5 class="card-title">{{ project.name }}</h5>
+            <p class="card-text">{{ project.description }}</p>
+        
+            <div class="d-flex align-items-center mb-2">
+              <div class="member-avatar"><i class="bi bi-people"></i></div>
+              <span class="ms-2">{{ project.members|length }} members</span>
+            </div>
+        
+            <!-- Invite 버튼 (좌하단) -->
+            <button class="btn btn-sm btn-outline-primary invite-member position-absolute start-0 bottom-0 m-2"
+                    data-project-id="{{ project._id }}">
+              <i class="bi bi-person-plus"></i> Invite
+            </button>
+        
+            <!-- Delete 또는 Leave 버튼 (우하단) -->
+            {% if project.owner == user._id %}
+              <button class="btn btn-sm btn-outline-danger delete-project position-absolute end-0 bottom-0 m-2"
+                      data-project-id="{{ project._id }}">
+                <i class="bi bi-trash"></i> Delete
+              </button>
+            {% else %}
+              <button class="btn btn-sm btn-outline-secondary leave-project position-absolute end-0 bottom-0 m-2"
+                      data-project-id="{{ project._id }}">
+                <i class="bi bi-box-arrow-left"></i> Leave
+              </button>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- New Project Modal -->
+<div class="modal fade" id="newProjectModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Create New Project</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="newProjectForm">
+          <div class="mb-3">
+            <label class="form-label">Project Name</label>
+            <input type="text" class="form-control" name="name" required />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Description</label>
+            <textarea class="form-control" name="description" rows="3"></textarea>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="createProject">Create Project</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Invite Member Modal -->
+<div class="modal fade" id="inviteMemberModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Invite Team Member</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="inviteMemberForm">
+          <input type="hidden" id="inviteProjectId" />
+          <div class="mb-3">
+            <label class="form-label">Username</label>
+            <input type="text" class="form-control" name="username" required />
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="sendInvite">Send Invite</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", async () => {
+  const sidebar = document.getElementById("sidebarMenu");
+  const toggleButton = document.getElementById("menuToggle");
+  const closeButton = document.getElementById("menuClose");
+  const invitationToggle = document.getElementById("toggleInvitations");
+  const invitationList = document.getElementById("invitationList");
+
+  function toggleSidebar() {
+    sidebar.classList.toggle("sidebar-closed");
+    sidebar.classList.toggle("sidebar-open");
+    toggleButton.style.display = sidebar.classList.contains("sidebar-open") ? "none" : "block";
+    closeButton.style.display = sidebar.classList.contains("sidebar-open") ? "block" : "none";
+  }
+
+  toggleButton.addEventListener("click", toggleSidebar);
+  closeButton.addEventListener("click", toggleSidebar);
+
+  invitationToggle.addEventListener("click", (e) => {
+    e.preventDefault();
+    invitationList.style.display = invitationList.style.display === "none" ? "block" : "none";
+  });
+
+  try {
+    const res = await fetch("/invitations");
+    const data = await res.json();
+    if (data.invitations.length === 0) {
+      invitationList.innerHTML = `<li class="list-group-item text-muted">No invitations</li>`;
+    } else {
+      data.invitations.forEach(invite => {
+        const li = document.createElement("li");
+        li.className = "list-group-item d-flex justify-content-between align-items-center";
+        li.innerHTML = `
+          ${invite.name}
+          <span>
+            <button class="btn btn-sm btn-success me-1" onclick="respondInvitation('${invite.id}', 'accept')">Accept</button>
+            <button class="btn btn-sm btn-danger" onclick="respondInvitation('${invite.id}', 'decline')">Decline</button>
+          </span>
+        `;
+        invitationList.appendChild(li);
+      });
+    }
+  } catch (err) {
+    console.error("Failed to fetch invitations:", err);
+    invitationList.innerHTML = `<li class="list-group-item text-danger">Error loading invitations</li>`;
+  }
+
+  document.getElementById("createProject").addEventListener("click", async () => {
+    const form = document.getElementById("newProjectForm");
+    const formData = new FormData(form);
+    const data = {
+      name: formData.get("name"),
+      description: formData.get("description")
+    };
+    try {
+      const response = await fetch("/projects/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data)
+      });
+      if (response.ok) {
+        alert("프로젝트가 생성되었습니다!");
+        bootstrap.Modal.getInstance(document.getElementById("newProjectModal")).hide();
+        form.reset();
+        window.location.reload();
+      } else {
+        const error = await response.json();
+        alert(error.message || "프로젝트 생성 실패");
+      }
+    } catch (err) {
+      console.error("Create project error:", err);
+      alert("오류가 발생했습니다.");
+    }
+  });
+
+  document.getElementById("sendInvite").addEventListener("click", async () => {
+    const form = document.getElementById("inviteMemberForm");
+    const formData = new FormData(form);
+    const projectId = document.getElementById("inviteProjectId").value;
+    const data = { username: formData.get("username") };
+    try {
+      const response = await fetch(`/projects/${projectId}/invite`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data)
+      });
+      if (response.ok) {
+        alert("Invitation sent successfully");
+        bootstrap.Modal.getInstance(document.getElementById("inviteMemberModal")).hide();
+        form.reset();
+      } else {
+        const error = await response.json();
+        alert(error.message || "Failed to send invitation");
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      alert("An error occurred");
+    }
+  });
+
+  document.querySelectorAll(".delete-project").forEach((button) => {
+    button.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      if (confirm("Are you sure you want to delete this project?")) {
+        const projectId = button.dataset.projectId;
+        try {
+          const response = await fetch(`/projects/${projectId}`, { method: "DELETE" });
+          if (response.ok) window.location.reload();
+          else alert("Failed to delete project");
+        } catch (error) {
+          console.error("Error:", error);
+          alert("An error occurred");
+        }
+      }
+    });
+  });
+
+  document.querySelectorAll(".leave-project").forEach((button) => {
+    button.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      if (confirm("이 프로젝트에서 나가시겠습니까?")) {
+        const projectId = button.dataset.projectId;
+        try {
+          const response = await fetch(`/projects/${projectId}`, { method: "DELETE" });
+          if (response.ok) window.location.reload();
+          else alert("Failed to leave project");
+        } catch (error) {
+          console.error("Error:", error);
+          alert("An error occurred");
+        }
+      }
+    });
+  });
+
+  document.querySelectorAll(".invite-member").forEach((button) => {
+    button.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const projectId = button.dataset.projectId;
+      document.getElementById("inviteProjectId").value = projectId;
+      new bootstrap.Modal(document.getElementById("inviteMemberModal")).show();
+    });
+  });
+
+  document.querySelectorAll(".project-card").forEach((card) => {
+    card.addEventListener("click", () => {
+      const projectId = card.dataset.projectId;
+      console.log("Project clicked:", projectId);
+    });
+  });
+});
+
+async function respondInvitation(projectId, action) {
+  if (action === "decline" && !confirm("정말로 이 초대를 거절하시겠습니까?")) return;
+  try {
+    const res = await fetch("/invitations/respond", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ project_id: projectId, action }),
+    });
+    if (res.ok) {
+      alert(`${action} 완료`);
+      window.location.reload();
+    } else {
+      const error = await res.json();
+      alert(error.message || "처리 실패");
+    }
+  } catch (err) {
+    console.error(err);
+    alert("요청 실패");
+  }
+}
+</script>
+</body>
+</html>
